@@ -155,9 +155,9 @@ def get_data_paths_from_binary(path_to_data,variable,delim='.',file_end='1'):
     all_paths = []
     filename_ = []
     for filename in os.listdir(path_to_data + variable):
-        f = os.path.join(path_to_data+variable, filename)
+        f = os.path.join(path_to_data,variable, filename)
     # checking if it is a file
         if filename.split(delim)[-1]==file_end:
             all_paths.append(filename)
-            filename_.append(path_to_data + filename)
+            filename_.append(f)
     return all_paths, filename_

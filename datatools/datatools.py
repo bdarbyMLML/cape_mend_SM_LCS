@@ -147,17 +147,33 @@ def get_data_paths_from_binary(path_to_data,variable,delim='.',file_end='1'):
         e.g.
         path_to_data = ./home/user/data/ 
         varible = var1
-        get_data_path_from_binary(path_to_data,variable,delim='.',number_delim_until_end=4,file_end='1')
-        where delim, number_of_delim_until_end,file_end selects for what file ending will be chosen
+        get_data_path_from_binary(path_to_data,variable,delim='.',file_end='1')
+        where delim,file_end selects for what file ending will be chosen
         returns
         ['./home/user/data/var1/d.a.t.a.1',''./home/user/data/var1/d.a.t.a.2'',''./home/user/data/var1/d.a.t.a.3'']
         '''
     all_paths = []
     filename_ = []
     for filename in os.listdir(path_to_data + variable):
-        f = os.path.join(path_to_data+variable, filename)
+        f = os.path.join(path_to_data,variable, filename)
     # checking if it is a file
         if filename.split(delim)[-1]==file_end:
             all_paths.append(filename)
-            filename_.append(path_to_data + filename)
+            filename_.append(f)
     return all_paths, filename_
+
+def convert_itter_to_datetime(number,datetime_start,timestep,shift_itter=0):
+    '''converts an itteration number to a datetime'''
+    itter_dt = datetime.fromtimestamp(datetime_start.timestamp()+(int(number)+int(shift_itter))*timestep)
+    return itter_dt
+
+def convert_binary_to_nc(file_name,file_path, shape, dims_list, coords_list, name,time_in_name_location=None, output_filepath='./'):
+    '''converts binary files to netcdf through xarray framework
+    '''
+    file = np.fromfile(file_path,'>f4')
+    file = np.reshape(file, shape)
+    if time_in_name_location!=None:
+        time = [int(filename[time_in_name_location[0]:time_in_name_location[1]])]
+    field = xr.DataArray(file,coords=coords_list,dims=dims_list).rename(name)
+    field.to_netcdf(output_filepath)
+    field.close()
