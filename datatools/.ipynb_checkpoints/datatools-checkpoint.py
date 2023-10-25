@@ -143,14 +143,14 @@ default colorstyle is 'RdBu_r', other recomended is 'viridis'
     ax.set_extent(extent)
     
 def get_data_paths_from_binary(path_to_data,variable,delim='.',file_end='1'):
-    '''This function returns a list of paths to the files that you want given the path to the data and the varible directory.
+    '''This function returns a list of file names and paths with filenames to the files that you want given the path to the data and the varible directory. Returns sorted
         e.g.
         path_to_data = ./home/user/data/ 
         varible = var1
-        get_data_path_from_binary(path_to_data,variable,delim='.',number_delim_until_end=4,file_end='1')
-        where delim, number_of_delim_until_end,file_end selects for what file ending will be chosen
+        get_data_path_from_binary(path_to_data,variable,delim='.',file_end='1')
+        where delim,file_end selects for what file ending will be chosen
         returns
-        ['./home/user/data/var1/d.a.t.a.1',''./home/user/data/var1/d.a.t.a.2'',''./home/user/data/var1/d.a.t.a.3'']
+        ['d.a.t.a1.1','d.a.t.a2.1','d.a.t.a3.1'],['./home/user/data/var1/d.a.t.a1.1',''./home/user/data/var1/d.a.t.a2.1'',''./home/user/data/var1/d.a.t.a3.1'']
         '''
     all_paths = []
     filename_ = []
@@ -160,4 +160,45 @@ def get_data_paths_from_binary(path_to_data,variable,delim='.',file_end='1'):
         if filename.split(delim)[-1]==file_end:
             all_paths.append(filename)
             filename_.append(f)
-    return all_paths, filename_
+    return sorted(all_paths), sorted(filename_)
+
+def convert_itter_to_datetime(number,datetime_start,timestep,shift_itter=0):
+    '''converts an itteration number to a datetime'''
+    itter_dt = datetime.fromtimestamp(datetime_start.timestamp()+(int(number)+int(shift_itter))*timestep)
+    return itter_dt
+
+def convert_binary_to_nc(file_name,file_path, shape, dims_list, coords_list, name,time_in_name_location=None, output_filepath='./'):
+    '''converts binary files to netcdf through xarray framework
+    '''
+    file = np.fromfile(file_path,'>f4')
+    file = np.reshape(file, shape)
+    if time_in_name_location!=None:
+        time = [int(filename[time_in_name_location[0]:time_in_name_location[1]])]
+    field = xr.DataArray(file,coords=coords_list,dims=dims_list).rename(name)
+    field.to_netcdf(output_filepath)
+    field.close()
+def f_grid(grid,latitude_name):
+    rot_ear = 7.292e-5  # Earth's rotation rate in radians/s
+    Rearth = 6371e3 # Earth's radius in m
+
+    f = 2*rot_ear* np.sin(np.deg2rad(grid[latitude_name])) # convert lat to radians
+    #rename for future use
+    f = f.rename('Coriolis Frequancy') 
+    f.attrs['long_name'] = 'Coriolis parameter'
+    f.attrs['units'] = 's-1'
+    return f
+    
+    
+    
+def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
+    field = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dxC), axis=0)[:, :-1] + np.diff(np.asarray(vvel[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta = np.zeros_like(numerator)
+    zeta[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    field[:,:] = zeta / np.asarray(f[:-1, :-1])
+    return field
+
+
+    
+    
