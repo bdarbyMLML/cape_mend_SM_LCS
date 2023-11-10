@@ -229,23 +229,23 @@ def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid
     for i in range(0,len(grid_prefix_2d)):
         file1 = path_to_grid_files+'/'+grid_prefix_2d[i]+'_'+str(dimx)+'x'+str(dimy)
         file_name1 = grid_prefix_2d[i]+'_'+str(dimx)+'x'+str(dimy)
-        shape = (dimx,dimy) 
+        shape = (dimy,dimx) 
         i0 = np.arange(dimx)
         j0 = np.arange(dimy)
         dim = ['i','j']
-        coord = [i0,j0]
+        coord = [j0,i0]
         convert_binary_to_nc(file_name1,file1,shape,dim,coord,grid_prefix_2d[i],output_filepath= './.'+file_name1+'.nc')
     
     #3D files
     try:
         k0 = np.arange(dimz)
         dim = ['i','j','k']
-        coords = [i0,j0,k0]
+        coords = [j0,i0,k0]
         
         for j in range(0,len(grid_prefix_3d)):
             file2 = path_to_grid_files+'/'+grid_prefix_3d[j]+'_'+str(dimx)+'x'+str(dimy)+'x'+str(dimz)
             file_name2 = grid_prefix_3d[j]+'_'+str(dimx)+'x'+str(dimy)+'x'+str(dimz)
-            shape = (dimx,dimy,dimz)
+            shape = (dimy,dimx,dimz)
             convert_binary_to_nc(file_name2,file2,shape,dim,coords,grid_prefix_3d[j],output_filepath= './.'+file_name2+'.nc')
     except:
         print('no 3d shape')
