@@ -214,9 +214,9 @@ def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
     field[:,:] = zeta / np.asarray(f[:-1, :-1])
     return field
 def YMD_to_DecYr(year,month,day):
-    start = dt.datetime(int(year),1,1).timestamp()
-    end = dt.datetime(int(year)+1,1,1).timestamp()
-    current =  dt.datetime(int(year),int(month),int(day)).timestamp()
+    start = datetime.datetime(int(year),1,1).timestamp()
+    end = datetime.datetime(int(year)+1,1,1).timestamp()
+    current =  datetime.datetime(int(year),int(month),int(day)).timestamp()
     current_diff = current-start
     percent = current_diff/(start-end)
     decY = int(year)-percent

@@ -14,6 +14,20 @@ import numpy as np
 import os
 import sys
 
+def resample_exf_field(exf_field, timestep):
+    orig_def = pyresample.geometry.SwathDefinition(lons=Lon, lats=Lat)
+    targ_def = pyresample.geometry.SwathDefinition(lons=XC, lats=YC)
+
+
+    interpolated_field =  pyresample.kd_tree.resample_gauss(orig_def, exf_field[timestep,:,:], targ_def,
+                                                            radius_of_influence=500000,
+                                                            fill_value=np.nan,
+                                                            sigmas=100000, neighbours=100)
+    return(interpolated_field)
+
+
+
+
 def mad_rolling_filter(df,window):
     '''Rolling M.A.D. filter 
     only intakes pandas dataframes
@@ -200,9 +214,9 @@ def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
     field[:,:] = zeta / np.asarray(f[:-1, :-1])
     return field
 def YMD_to_DecYr(year,month,day):
-    start = dt.datetime(int(year),1,1).timestamp()
-    end = dt.datetime(int(year)+1,1,1).timestamp()
-    current =  dt.datetime(int(year),int(month),int(day)).timestamp()
+    start = datetime.datetime(int(year),1,1).timestamp()
+    end = datetime.datetime(int(year)+1,1,1).timestamp()
+    current =  datetime.datetime(int(year),int(month),int(day)).timestamp()
     current_diff = current-start
     percent = current_diff/(start-end)
     decY = int(year)-percent
