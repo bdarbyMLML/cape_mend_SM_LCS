@@ -113,7 +113,7 @@ Matlab function: http://woodshole.er.usgs.gov/operations/sea-mat/RPSstuff-html/p
 
     return theta,major,minor
 
-def map_capemend(ds_x,ds_y=None, ds_z = None, color=False,vec=False,extent= [-125.6,-124.07,37.75,42.13],scl=1, labelz=False, qlabel=False, colorstyle = 'viridis', zmin=None,zmax=None ):
+def map_capemend(ds_x,ds_y=None, ds_z = None, color=False,vec=False,extent= [-125.6,-124.07,37.75,42.13],scl=1, labelz=False, qlabel=False, colorstyle = 'viridis', zmin=None,zmax=None, ax=None ,proj = ccrs.LambertConformal(),figsize=(15, 8)):
     '''
 Maps two xarray data sets in the Cape Mendocino region with vectors on each gridpoint to a LambertConformal projection.
 The lat/lon extent for this mapping is lon=(-125.6,-124.07) lat=(37.75,42.13)
@@ -126,35 +126,35 @@ scl is scaling of vectors. Input float.
 
 default colorstyle is 'RdBu_r', other recomended is 'viridis'
     '''
-    proj = ccrs.LambertConformal()
-    fig = plt.figure(figsize=(15, 8))
-    ax = plt.axes(projection=proj)
+    
+    fig = plt.figure(figsize=figsize)
+    ax_1 = plt.axes(projection=proj)
     if ((ds_y is None)or(color=='x'))and(labelz is False):
-        ds_x.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, vmin = zmin,vmax = zmax )
+        ds_x.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, vmin = zmin,vmax = zmax , ax=ax)
     if ((ds_y is not None)and(color=='y'))and(labelz is False)and(ds_z is None):
-        ds_y.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, vmin = zmin,vmax = zmax)
+        ds_y.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, vmin = zmin,vmax = zmax, ax=ax)
     if ((ds_y is None)or(color=='x'))and(labelz is not False):
-        ds_x.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax)
+        ds_x.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax, ax=ax)
     if ((ds_y is not None)and(color=='y'))and(labelz is not False)and(ds_z is None):
-        ds_y.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax)
+        ds_y.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax, ax=ax)
     if ((ds_z is not None)or(color=='z'))and(labelz is False):
         ds_z.plot(transform=ccrs.PlateCarree(), cmap = colorstyle,vmin = zmin,vmax = zmax) 
     if ((ds_z is not None)or(color=='z'))and(labelz is not False):
-        ds_z.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax)
+        ds_z.plot(transform=ccrs.PlateCarree(), cmap = colorstyle, cbar_kwargs={'label':labelz},vmin = zmin,vmax = zmax, ax=ax)
     
     coast_10m = cfeature.NaturalEarthFeature("physical", "land", "10m", edgecolor="k", facecolor="0.8")
 
-    ax.add_feature(coast_10m)
+    ax_1.add_feature(coast_10m)
 
 
     if (ds_y is not None)and(ds_z is None)and(vec is True):
-            ax.quiver(np.asarray(ds_x['lon']), np.asarray(ds_x['lat']), np.asarray(ds_x[0]), np.asarray(ds_y[0]),transform=ccrs.PlateCarree(),scale=scl, label = qlabel )
+            ax_1.quiver(np.asarray(ds_x['lon']), np.asarray(ds_x['lat']), np.asarray(ds_x[0]), np.asarray(ds_y[0]),transform=ccrs.PlateCarree(),scale=scl, label = qlabel )
     if (ds_y is not None)and(ds_z is not None):
-            ax.quiver(np.asarray(ds_x['lon']), np.asarray(ds_x['lat']), np.asarray(ds_x), np.asarray(ds_y),transform=ccrs.PlateCarree(),scale=scl, label = qlabel)
-    gl = ax.gridlines(draw_labels=True)
+            ax_1.quiver(np.asarray(ds_x['lon']), np.asarray(ds_x['lat']), np.asarray(ds_x), np.asarray(ds_y),transform=ccrs.PlateCarree(),scale=scl, label = qlabel)
+    gl = ax_1.gridlines(draw_labels=True)
     gl.xformatter = LONGITUDE_FORMATTER
     gl.yformatter = LATITUDE_FORMATTER
-    ax.set_extent(extent)
+    ax_1.set_extent(extent)
     
 def get_data_paths_from_binary(path_to_data,variable,delim='.',file_end='1'):
     '''This function returns a list of file names and paths with filenames to the files that you want given the path to the data and the varible directory. Returns sorted
@@ -205,7 +205,7 @@ def f_grid(grid,latitude_name):
     
     
     
-def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
+def calculate_divergence(uvel,vvel,dxC,dyC,rAz,f):
     field = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
     numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dxC), axis=0)[:, :-1] + np.diff(np.asarray(vvel[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
     denominator = np.asarray(rAz[:-1, :-1])
@@ -213,6 +213,30 @@ def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
     zeta[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
     field[:,:] = zeta / np.asarray(f[:-1, :-1])
     return field
+def calculate_vorticity(uvel,vvel,dxC,dyC,rAz,f):
+    field = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = -1*np.diff(np.asarray(uvel[:,:]) * np.asarray(dyC), axis=0)[:, :-1] + np.diff(np.asarray(vvel[:,:]) * np.asarray(dxC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta = np.zeros_like(numerator)
+    zeta[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    field[:,:] = zeta / np.asarray(f[:-1, :-1])
+    return field
+
+def calculate_strain_rate(uvel,vvel,dxC,dyC,rAz,f):
+    field_1 = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dxC), axis=0)[:, :-1] - np.diff(np.asarray(vvel[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta = np.zeros_like(numerator)
+    zeta[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    field_1[:,:] = (zeta / np.asarray(f[:-1, :-1]))**2
+    field_2 = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dyC), axis=0)[:, :-1] + np.diff(np.asarray(vvel[:,:]) * np.asarray(dxC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta = np.zeros_like(numerator)
+    zeta[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    field_2[:,:] = (zeta / np.asarray(f[:-1, :-1]))**2
+    field_str = (field_1+field_2)**(0.5)
+    return field_str
 def YMD_to_DecYr(year,month,day):
     start = datetime.datetime(int(year),1,1).timestamp()
     end = datetime.datetime(int(year)+1,1,1).timestamp()
@@ -272,6 +296,34 @@ def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid
     for files in total_file_paths:
                    os.system('rm '+ files)
 
+def rot(u,v,theta):
+    """
+Rotate a vector counter-clockwise OR rotate the coordinate system clockwise.
 
+Usage:
+ur,vr = rot(u,v,theta)
+
+Input:
+u,v - vector components (e.g. u = eastward velocity, v = northward velocity)
+theta - rotation angle (degrees)
+
+Output:
+ur,vr - rotated vector components
+
+Example:
+rot(1,0,90) returns (0,1)
+    """
+
+    # Make sure inputs are numpy arrays
+    if type(u) is list:
+        u = np.array(u)
+        v = np.array(v)
+
+    w = u + 1j*v            # complex vector
+    ang = theta*np.pi/180   # convert angle to radians
+    wr = w*np.exp(1j*ang)  # complex vector rotation
+    ur = np.real(wr)        # return u and v components
+    vr = np.imag(wr)
+    return ur,vr
     
     
