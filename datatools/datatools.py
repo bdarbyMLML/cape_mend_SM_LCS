@@ -1,4 +1,3 @@
-import numpy
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import math
