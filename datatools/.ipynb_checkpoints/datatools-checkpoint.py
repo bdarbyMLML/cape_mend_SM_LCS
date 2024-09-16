@@ -236,6 +236,58 @@ def calculate_strain_rate(uvel,vvel,dxC,dyC,rAz,f):
     field_2[:,:] = (zeta / np.asarray(f[:-1, :-1]))**2
     field_str = (field_1+field_2)**(0.5)
     return field_str
+
+def calculate_frontogenesis_function(uvel,vvel,density,dxC,dyC,rAz):
+    #dudx
+    field_1 = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dxC), axis=0)[:, :-1]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_dudx = np.zeros_like(numerator)
+    zeta_dudx[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    dudx = zeta_dudx
+    #d_rhodx
+    field_1 = np.zeros((np.shape(density)[0]-1,np.shape(density)[1]-1))
+    numerator = np.diff(np.asarray(density[:,:]) * np.asarray(dxC), axis=0)[:, :-1]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_d_rhodx = np.zeros_like(numerator)
+    zeta_d_rhodx[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    d_rhodx = zeta_d_rhodx
+    
+    term1 = dudx*(d_rhodx)**2
+    #dvdx
+    field_1 = np.zeros((np.shape(vvel)[0]-1,np.shape(vvel)[1]-1))
+    numerator = np.diff(np.asarray(vvel[:,:]) * np.asarray(dxC), axis=0)[:, :-1]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_dvdx = np.zeros_like(numerator)
+    zeta_dvdx[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    dvdx=zeta_dvdx
+    #d_rhody
+    field_1 = np.zeros((np.shape(density)[0]-1,np.shape(density)[1]-1))
+    numerator = np.diff(np.asarray(density[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_d_rhody = np.zeros_like(numerator)
+    zeta_d_rhody[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    d_rhody=zeta_d_rhody
+    term2 = dvdx*d_rhody*d_rhodx
+    #dudy
+    field_1 = np.zeros((np.shape(uvel)[0]-1,np.shape(uvel)[1]-1))
+    numerator = np.diff(np.asarray(uvel[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_dudy = np.zeros_like(numerator)
+    zeta_dudy[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    dudy=zeta_dudy
+    #dvdy
+    field_1 = np.zeros((np.shape(vvel)[0]-1,np.shape(vvel)[1]-1))
+    numerator = np.diff(np.asarray(vvel[:,:]) * np.asarray(dyC), axis=1)[:-1, :]
+    denominator = np.asarray(rAz[:-1, :-1])
+    zeta_dvdy = np.zeros_like(numerator)
+    zeta_dvdy[denominator != 0] = numerator[denominator != 0] / denominator[denominator != 0]
+    dvdy=zeta_dvdy
+    term3 = dudy*d_rhody*d_rhodx
+    term4 = dvdy*(d_rhody)**2
+    frontogenesis = -(term1+term2+term3+term4)
+    return frontogenesis
+
 def YMD_to_DecYr(year,month,day):
     start = datetime.datetime(int(year),1,1).timestamp()
     end = datetime.datetime(int(year)+1,1,1).timestamp()
@@ -247,6 +299,7 @@ def YMD_to_DecYr(year,month,day):
     return decY
 
 def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid.nc'):
+    grid_prefix_1d = ['DRF','RC']
     grid_prefix_2d = ['Depth','DXV','DYU','RAZ','YC','DXC','DYC','XC','YG','DXG','DYG','RAC','XG']
     grid_prefix_3d = ['hFacC']
     if type(dim_of_grid)==tuple:
@@ -262,6 +315,7 @@ def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid
         except:
     
             print('no 3d shape')
+
     #2D files
     for i in range(0,len(grid_prefix_2d)):
         file1 = path_to_grid_files+'/'+grid_prefix_2d[i]+'_'+str(dimx)+'x'+str(dimy)
@@ -276,6 +330,17 @@ def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid
     #3D files
     try:
         k0 = np.arange(dimz)
+        #1D files
+        for m in range(0,len(grid_prefix_1d)):
+            file1 = path_to_grid_files+'/'+grid_prefix_1d[m]+'_'+str(dimz)
+            file_name1 = grid_prefix_1d[i]+'_'+str(dimz)
+            shape = (dimz) 
+        
+        
+            dim = ['k']
+            coord = [k0]
+            convert_binary_to_nc(file_name1,file1,shape,dim,coord,grid_prefix_2d[i],output_filepath= './.'+file_name1+'.nc')
+        
         dim = ['i','j','k']
         coords = [j0,i0,k0]
         
@@ -286,9 +351,10 @@ def convert_mitgcm_grid_to_nc(path_to_grid_files,dim_of_grid,output_path='./grid
             convert_binary_to_nc(file_name2,file2,shape,dim,coords,grid_prefix_3d[j],output_filepath= './.'+file_name2+'.nc')
     except:
         print('no 3d shape')
+    one_d_files, one_d_filepaths= get_data_paths_from_binary('./','./',delim='_',file_end=str(dim_of_grid[2]))
     two_d_files, two_d_filepaths= get_data_paths_from_binary('./','./',delim='_',file_end=str(dim_of_grid[0])+'x'+str(dim_of_grid[1])+'.nc')
     three_d_files, three_d_filepaths = get_data_paths_from_binary('./','./',delim='_',file_end=str(dim_of_grid[0])+'x'+str(dim_of_grid[1])+'x'+str(dim_of_grid[2])+'.nc')
-    total_file_paths = two_d_filepaths+three_d_filepaths
+    total_file_paths = one_d_filepaths+two_d_filepaths+three_d_filepaths
     grid_full = xr.open_mfdataset(total_file_paths)
     grid_full.to_netcdf(output_path)
     grid_full.close()
