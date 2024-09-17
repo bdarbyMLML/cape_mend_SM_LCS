@@ -7,11 +7,183 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-from scipy import stats
 from scipy.optimize import curve_fit
 import numpy as np
 import os
 import sys
+
+from scipy import stats, signal
+def _filt(x,wts,return_weights=False):
+    """
+Private function to filter a time series and pad the ends of the filtered time series with NaN values. For N weights, N/2 values are padded at each end of the time series. The filter weights are normalized so that the sum of weights = 1.
+
+Inputs:
+
+x - the time series (may be 2d, will be filtered along columns)
+wts - the filter weights
+return_weights - if True, return the filter weights instead of a filtered time series (default: False)
+
+Output:
+- the filtered time series (default)
+- filter weights (if `return_weights=True` is specified)
+    """
+
+    # convert to 2D array if necessary (general case)
+    ndims = np.ndim(x)
+    if ndims == 1:
+        x = np.expand_dims(x,axis=1)
+
+    # normalize weights
+    wtsn = wts*sum(wts)**-1 # normalize weights so sum = 1
+
+    if return_weights==False:
+        # Convolve using 'direct' method. In older versions of scipy, this has to
+        # be specified because the default 'auto' method could decide to use the
+        # 'fft' method, which does not work for time series with NaNs. In newer
+        # versions, there is no method option.
+        try:
+            xf = signal.convolve(x,wtsn[:,np.newaxis],mode='same',method='direct')
+        except:
+            xf = signal.convolve(x,wtsn[:,np.newaxis],mode='same')
+
+        # note: np.convolve may be faster
+        # http://scipy.github.io/old-wiki/pages/Cookbook/ApplyFIRFilter
+
+        # pad ends of time series
+        nwts = len(wts) # number of filter weights
+        npad = int(np.ceil(0.5*nwts))
+        xf[:npad,:] = np.nan
+        xf[-npad:,:] = np.nan
+
+        # return array with same number of dimensions as input
+        if ndims == 1:
+            xf = xf.flatten()
+    elif return_weights==True:
+        # return normalized weights instead of filtered time series
+        xf = wtsn
+    else:
+        raise('return_weights must be a Boolean')
+
+    return xf
+def pl64(x=None,dt=1,T=33,return_weights=False):
+    """
+Filter a time series x with the PL64 filter. If x is 2D, the time series will be filtered along columns.
+
+Inputs:
+x - a numpy array to be filtered
+dt - sample interval (hours), default = 1
+T - half-amplitude period (hours), default = 33
+return_weights - Boolean indicating whether to return the filter weights instead of a filtered time series, default = False
+
+Output:
+- numpy array of filtered time series, same size as input with ends NaN values at start and end (default)
+- numpy array of filter weights (if `return_weights=True` is specified)
+
+Reference: CODE-2: Moored Array and Large-Scale Data Report, WHOI 85-35
+    """
+
+    Tn=float(T)/dt # normalized cutoff period
+    fqn=1./Tn # normalized cutoff frequency
+    nw = int(np.round(64/dt)) # number of weights on one side
+
+    # create filter weights
+    j = np.arange(1,nw)
+    tn = np.pi*j
+    den=fqn*fqn*tn**3
+    wts = (2*np.sin(2*fqn*tn)-np.sin(fqn*tn)-np.sin(3*fqn*tn))/den
+
+    # make symmetric
+    wts = np.hstack((wts[::-1],2*fqn,wts))
+
+    xf = _filt(x,wts,return_weights)
+    return xf
+
+
+
+def lancz(x=None,dt=1,T=40,return_weights=False):
+    """
+Filter a time series x with cosine-Lanczos filter. If x is 2D, the time series will be filtered along columns.
+
+The default half amplitude period of 40 hours corresponds to a frequency of 0.6 cpd. A half amplitude period of 34.29h corresponds to 0.7 cpd. The 40 hour half amplitude period is more effective at reducing diurnal-band variability but shifts periods of variability in low passed time series to >2 days.
+
+Inputs:
+x - a numpy array to be filtered
+dt - sample interval (hours), default = 1
+T - half-amplitude period (hours), default = 40
+return_weights - Boolean indicating whether to return the filter weights instead of a filtered time series, default = False
+
+Output:
+- numpy array of filtered time series, same size as input with ends NaN values at start and end (default)
+- numpy array of filter weights (if `return_weights=True` is specified)
+
+Reference: Emery and Thomson, 2004, Data Analysis Methods in Physical Oceanography. 2nd Ed., pp. 539-540. Section 5.10.7.4 - The Hanning window.
+    """
+
+    cph = 1./dt   # samples per hour
+    nwts = int(np.round(120*cph)) # number of weights
+
+    # create filter weights
+    wts = signal.firwin(nwts,
+                        1./T,
+                        window='hamming',
+                        nyq=cph/2.)
+
+    xf = _filt(x,wts,return_weights)
+    return xf
+
+
+
+def filt(da,dim='time',dt=None,T=33,filter_name='pl64'):
+    '''
+Low pass filter a DataArray along a temporal dimension
+
+Inputs:
+da  - the DataArray to be filtered
+dim - name of the temporal dimension (default 'time')
+dt  - time interval of DataArray, in units of hours (default, selected automatically), for data obtained at hourly intervals, dt=1
+      note: this must be consistent throughout the dataset. Specifying a value may be useful if the interval is nearly consistent, but not exactly
+filter_name - name of the low pass filter (functions in physoce.tseries), should be 'pl64', 'pl66' or 'lancz' (default 'pl64')
+
+Returns:
+- the DataArray, filtered along the temporal dimension
+    '''
+
+    # automatically find time step if not specified by user
+    if dt == None:
+        dt_array = da[dim].diff(dim=dim)/np.timedelta64(1,'h')
+        dt_unique = np.unique(dt_array)
+
+        if len(dt_unique) == 1:
+            dt = float(dt_unique)
+        else:
+            raise ValueError('time step must be consistent, or specified manually as input')
+
+    # get filter weights
+    if filter_name == 'pl64':
+        wts = pl64(dt=dt,T=T,return_weights=True)
+    elif filter_name == 'pl66':
+        wts = ts.pl66(dt=dt,T=T,return_weights=True)
+    elif filter_name == 'lancz':
+        wts = lancz(dt=dt,T=T,return_weights=True)
+    else:
+        raise NameError('filter_name not understood, must be pl64, pl66 or lancz')
+
+    # filter along specified dimension
+    # follows example at: http://xarray.pydata.org/en/stable/user-guide/computation.html#rolling-window-operations
+    weight = xr.DataArray(wts,dims=['window'])
+    daf = da.rolling({dim:len(weight)},center='True').construct({dim:'window'}).dot(weight)
+
+    return daf
+
+
+
+
+
+
+
+
+
+
 
 def resample_exf_field(exf_field, timestep):
     orig_def = pyresample.geometry.SwathDefinition(lons=Lon, lats=Lat)
